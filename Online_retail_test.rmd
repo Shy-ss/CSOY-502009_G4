@@ -60,6 +60,9 @@ df$reward <- 1L
 
 bandit_log <- df[, c("round", "StockCode", "reward")]
 names(bandit_log) <- c("round", "arm", "reward")
+bandit_log$arm <- droplevels(factor(bandit_log$arm))
+K <- nlevels(bandit_log$arm)
+n <- nrow(bandit_log)
 ```
 
 ```{r}
@@ -76,16 +79,14 @@ n <- nrow(bandit_log)
 # Simulate probabilistic rewards for each arm
 set.seed(502009)
 arm_probs <- runif(length(unique(bandit_log$arm)), 0.1, 0.9)
-names(arm_probs) <- unique(bandit_log$arm)
+np_vec <- arm_probs[ as.character(bandit_log$arm) ]
+stopifnot(!any(is.na(p_vec)))
 
-# Apply simulated binary reward
-bandit_log$reward <- rbinom(nrow(bandit_log), 1, arm_probs[bandit_log$arm])
+bandit_log$reward <- rbinom(nrow(bandit_log), 1, p_vec)
 ```
 
 #### UCB
 ```{r}
-K <- length(unique(bandit_log$arm))
-n <- nrow(bandit_log)
 counts <- rep(0, K)
 values <- rep(0, K)
 rewards_ucb <- numeric(n)
@@ -96,11 +97,12 @@ for (t in 1:n) {
     values + sqrt(2 * log(t) / counts)
   )
   chosen_arm <- which.max(ucb_values)
-  
-  reward <- bandit_log$reward[t]
+
+
+  reward <- rbinom(1, 1, arm_probs[chosen_arm])
+
   counts[chosen_arm] <- counts[chosen_arm] + 1
   values[chosen_arm] <- values[chosen_arm] + (reward - values[chosen_arm]) / counts[chosen_arm]
-  
   rewards_ucb[t] <- reward
 }
 ```
@@ -167,6 +169,20 @@ library(ggrepel)
 library(scales)
 library(tidyr)
 library(dplyr)
+
+df_compare <- data.frame(
+  round = 1:n,
+  UCB = cumsum(rewards_ucb),
+  ETC = cumsum(rewards_etc),
+  TS  = cumsum(rewards_ts)
+)
+
+df_long <- data.frame(
+  round = rep(df_compare$round, 3),
+  Algorithm = factor(rep(c("UCB","ETC","TS"), each = n),
+                     levels = c("UCB","ETC","TS")),
+  CumulativeReward = c(df_compare$UCB, df_compare$ETC, df_compare$TS)
+)
 
 end_vals <- df_long %>%
   group_by(Algorithm) %>%
