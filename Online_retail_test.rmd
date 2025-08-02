@@ -163,19 +163,39 @@ for (t in 1:n) {
 
 ### 3 compare
 ```{r}
-df_compare <- data.frame(
-  round = 1:n,
-  UCB = cumsum(rewards_ucb),
-  ETC = cumsum(rewards_etc),
-  TS = cumsum(rewards_ts)
-)
+library(ggrepel)
+library(scales)
+library(tidyr)
+library(dplyr)
 
-library(ggplot2)
-df_long <- reshape2::melt(df_compare, id.vars = "round")
+end_vals <- df_long %>%
+  group_by(Algorithm) %>%
+  filter(round == max(round)) 
+df_long <- df_compare |>
+  pivot_longer(-round, names_to = "Algorithm", values_to = "CumulativeReward") |>
+  drop_na()
 
-ggplot(df_long, aes(x = round, y = value, color = variable)) +
-  geom_line() +
-  labs(title = "Cumulative Reward by Algorithm", y = "Cumulative Reward", color = "Algorithm")
+end_vals <- df_long |>
+  group_by(Algorithm) |>
+  slice_max(round, n = 1)
+
+ggplot(df_long, aes(round, CumulativeReward, color = Algorithm)) +
+  geom_line(linewidth = 0.7, na.rm = TRUE) +
+  geom_vline(xintercept = explore_rounds * K, linetype = 2) +
+  geom_label_repel(
+    data = end_vals,
+    aes(label = comma(CumulativeReward, accuracy = 1)),
+    size = 3, show.legend = FALSE
+  ) +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Cumulative Reward by Algorithm",
+    subtitle = paste0("Dashed line = end of ETC exploration (", explore_rounds, " × ", K, " rounds)"),
+    x = "round", y = "Cumulative Reward"
+  ) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank())
 ```
 
 
